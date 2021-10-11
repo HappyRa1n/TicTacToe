@@ -1,25 +1,56 @@
-/*
- * Dependencies:
- *  gdi32
- *  (kernel32)
- *  user32
- *  (comctl32)
- *
- */
-
+//
 #include <stdio.h>
 #include <stdlib.h>
 #include <tchar.h>
 #include <windows.h>
-
+#include <windowsx.h>
+#include <fstream>
+#include <vector>
 #define KEY_SHIFTED     0x8000
 #define KEY_TOGGLED     0x0001
 
-const TCHAR szWinClass[] = _T("kek");
-const TCHAR szWinName[]  = _T("lol");
+const TCHAR szWinClass[] = _T("TicTacToe");
+const TCHAR szWinName[]  = _T("TicTac");
+
+WNDCLASS wincl;
+HDC hdc; // контекст рисования
 HWND hwnd;               /* This is the handle for our window */
 HBRUSH hBrush;           /* Current brush */
-HPEN hPen;
+HPEN hPenGrid;          // цвет решетки
+HPEN hCross;//цвет крестика
+HBRUSH hbEl;//цвет круга
+HPEN hEl;//цвет рамки
+int n = 3;//размерность сетки
+enum eCellType
+{
+    eNone=0,
+    eEllipse,
+    eCross
+};
+
+//флаги зажатия клавиш
+bool shift = false;
+bool c = false;
+bool ctrl = false;
+bool q = false;
+//
+
+std::vector<eCellType> grid_mas(n*n,eNone);
+int step_x;
+int step_y;
+RECT rect;// рект окна
+int heightW;//высота рабочего окна
+int widthW;//ширина рабочего окна
+int size_line = 3;
+
+int Napravlenie = 1;
+int R = 239;
+int G = 48;
+int B = 56;
+bool Rbool = true;
+bool Gbool = false;
+bool Bbool = true;
+
 /* Runs Notepad */
 void RunNotepad(void)
 {
@@ -33,6 +64,65 @@ void RunNotepad(void)
         NULL, NULL, NULL, FALSE, 0, NULL, NULL, &sInfo, &pInfo);
 }
 
+void FindIndex(int x, int y, int& indexI, int& indexJ) {
+    indexI = x / step_x;
+    indexJ = y / step_y;
+}
+void DrawLine(LONG x1, LONG y1, LONG x2, LONG y2) {
+    MoveToEx(hdc, x1, y1, NULL);
+    LineTo(hdc, x2, y2);
+}
+void CreateGrid() {
+    SelectObject(hdc, hPenGrid);
+    int start_x = rect.left;
+    for (int i = 0; i < n; i++) {
+        DrawLine( start_x, rect.top, start_x, rect.bottom);
+        start_x += step_x;
+    }
+    DrawLine(rect.right, rect.top, rect.right, rect.bottom);
+
+    int start_y = rect.top;
+    for (int i = 0; i < n; i++) {
+        DrawLine( rect.left, start_y, rect.right, start_y);
+        start_y += step_y;
+    }
+    DrawLine(rect.left, rect.bottom, rect.right, rect.bottom);
+    int kek = 0;
+}
+void DrawEllipse(int x, int y) {
+    int i = rect.left + step_x * x;
+    int j = rect.top + step_y * y;
+
+    int s_x = step_x / 10;
+    int s_y = step_y / 10;
+
+    SelectObject(hdc, hbEl);
+    SelectObject(hdc, hEl);
+
+    Ellipse(hdc, i + s_x, j + s_x, i + step_x-s_x, j + step_y-s_y);
+}
+void DrawCross(int x, int y) {
+    int i = rect.left+step_x * x;
+    int j = rect.top+step_y * y;
+    int s_x = step_x / 10;
+    int s_y = step_y / 10;
+
+    SelectObject(hdc, hCross);
+    DrawLine(i + s_x, j + s_y, i + step_x - s_x, j + step_y - s_y);
+    DrawLine(i+step_x - s_x, j + s_y, i + s_x, j + step_y - s_y);
+}
+void DrawMas() {
+    for (int y = 0; y < n; y++) {
+        for (int x= 0; x < n; x++) {
+            if (grid_mas[y * n + x] == eEllipse) {
+                DrawEllipse(x, y);
+            }
+            if (grid_mas[y * n + x] == eCross) {
+                DrawCross(x, y);
+            }
+        }
+    }
+}
 /*  This function is called by the Windows function DispatchMessage()  */
 LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -47,16 +137,187 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM 
         }
         return 0;
     }
+    case WM_LBUTTONDOWN:
+    {
+        POINT pt;
+        pt.x = GET_X_LPARAM(lParam);
+        pt.y = GET_Y_LPARAM(lParam);
+        int Iindex, Jindex;
+
+        FindIndex(pt.x, pt.y, Iindex, Jindex);
+        if (grid_mas[Jindex*n+Iindex] != eEllipse) {
+            grid_mas[Jindex * n + Iindex] = eEllipse;
+            InvalidateRect(hwnd, NULL, TRUE);
+        }
+        return 0;
+    }
+    case WM_RBUTTONDOWN:
+    {
+        POINT pt;
+        pt.x = GET_X_LPARAM(lParam);
+        pt.y = GET_Y_LPARAM(lParam);
+        int Iindex, Jindex;
+
+        FindIndex(pt.x, pt.y, Iindex, Jindex);
+        if (grid_mas[Jindex * n + Iindex] != eCross) {
+            grid_mas[Jindex * n + Iindex] = eCross;
+            InvalidateRect(hwnd, NULL, TRUE);
+        }
+        return 0;
+    }
+    /*case WM_ERASEBKGND:
+    {
+        RECT rc; GetClientRect(hwnd, &rc);
+        hBrush = CreateSolidBrush(RGB(rand() % 256, rand() % 256, rand() % 256));
+        FillRect((HDC)(wParam), &rc, hBrush);
+        return 0;
+    }*/
+    case WM_KEYDOWN:
+    {
+        switch (wParam) {
+        case VK_RETURN: {
+            DeleteObject(hBrush);
+            hBrush = CreateSolidBrush(RGB(rand() % 256, rand() % 256, rand() % 256));
+            SetClassLongPtrA(hwnd, GCLP_HBRBACKGROUND, (LONG_PTR)hBrush);
+           // WM_ERASEBKGND
+            break;
+        }
+        case VK_ESCAPE:
+            TerminateProcess(GetCurrentProcess(), 0);
+            break;
+        case 0x43:
+            if (shift) {
+                RunNotepad();
+            }
+            c = true;
+            break;
+        case VK_SHIFT:
+            if (c) {
+                RunNotepad();
+            }
+            shift = true;
+            break;
+        case VK_CONTROL:
+            if (q) {
+                TerminateProcess(GetCurrentProcess(), 0);
+            }
+            ctrl = true;
+            break;
+        case 0x51:
+            if (ctrl) {
+                TerminateProcess(GetCurrentProcess(), 0);
+            }
+            q = true;
+            break;
+        }
+        InvalidateRect(hwnd, NULL, TRUE);
+        return 0;
+    }
+
+    case WM_KEYUP:
+    {
+        switch (wParam) {
+        case 0x43:
+            c = false;
+            break;
+        case VK_SHIFT:
+            shift = false;
+            break;
+        case 0x51:
+            q = false;
+            break;
+        case VK_CONTROL:
+            ctrl = false;
+            break;
+        }
+        return 0;
+    }
+
+    case WM_MOUSEWHEEL:
+    {
+        int tmp = 3;
+        if (GET_WHEEL_DELTA_WPARAM(wParam) * Napravlenie <= 0) {
+            Napravlenie = Napravlenie * -1;
+            Rbool = !Rbool;
+            Gbool = !Gbool;
+            Bbool = !Bbool;
+        }
+        if (Rbool) {
+            if (R + tmp <= 255)
+            {
+                R += tmp;
+            }
+            else {
+                Rbool = !Rbool;
+            }
+        }
+        else {
+            if (R - tmp >= 0)
+            {
+                R -= tmp;
+            }
+            else {
+                Rbool = !Rbool;
+            }
+        }
+        //
+        if (Gbool) {
+            if (G + tmp <= 255)
+            {
+                G += tmp;
+            }
+            else {
+                Gbool = !Gbool;
+            }
+        }
+        else {
+            if (G - tmp >= 0)
+            {
+                G -= tmp;
+            }
+            else {
+                Gbool = !Gbool;
+            }
+        }
+        //
+        if (Bbool) {
+            if (B + tmp <= 255)
+            {
+                B += tmp;
+            }
+            else {
+                Bbool = !Bbool;
+            }
+        }
+        else {
+            if (B - tmp >= 0)
+            {
+                B -= tmp;
+            }
+            else {
+                Bbool = !Bbool;
+            }
+        }
+        DeleteObject(hPenGrid);
+        hPenGrid = CreatePen(PS_SOLID, size_line, RGB(R, G, B));
+        InvalidateRect(hwnd, NULL, TRUE);
+    }
     case WM_PAINT:
     {
         PAINTSTRUCT ps;
-        HDC hdc = BeginPaint(hwnd, &ps);
-        RECT clientREct;
-        GetClientRect(hwnd, &clientREct);
+        hdc = BeginPaint(hwnd, &ps);
+       // FillRect(hdc, &ps.rcPaint, hBrush);
+        GetClientRect(hwnd, &rect);
+        
+        widthW = rect.right - rect.left;
+        heightW = rect.bottom - rect.top;
 
-        SelectObject(hdc, hPen);
-        MoveToEx(hdc, clientREct.left, clientREct.top, NULL);
-        LineTo(hdc,clientREct.right, clientREct.bottom);
+
+        step_x = widthW / n;
+        step_y = heightW / n;
+
+        CreateGrid();
+        DrawMas();
         EndPaint(hwnd, &ps);
         break;
     }
@@ -67,9 +328,10 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM 
 
 int main(int argc, char** argv)
 {
+
     BOOL bMessageOk;
     MSG message;            /* Here message to the application are saved */
-    WNDCLASS wincl = { 0 };         /* Data structure for the windowclass */
+    wincl = { 0 };         /* Data structure for the windowclass */
 
     /* Harcode show command num when use non-winapi entrypoint */
     int nCmdShow = SW_SHOW;
@@ -83,7 +345,10 @@ int main(int argc, char** argv)
 
     /* Use custom brush to paint the background of the window */
     hBrush = CreateSolidBrush(RGB(0, 0, 255));
-    hPen = CreatePen(PS_SOLID, 2, RGB(255, 0, 0));
+    hPenGrid = CreatePen(PS_SOLID, size_line, RGB(255, 0, 0));
+    hCross = CreatePen(PS_SOLID, size_line, RGB(0, 255, 0));
+    hbEl = CreateSolidBrush(RGB(170, 240, 209));
+    hEl = CreatePen(PS_SOLID, size_line, RGB(170, 240, 209));//цвет круга
     wincl.hbrBackground = hBrush;
 
     /* Register the window class, and if it fails quit the program */
@@ -129,8 +394,10 @@ int main(int argc, char** argv)
     DestroyWindow(hwnd);
     UnregisterClass(szWinClass, hThisInstance);
     DeleteObject(hBrush);
-
-    RunNotepad();
+    DeleteObject(hPenGrid);
+    DeleteObject(hCross);
+    DeleteObject(hEl);
+    //RunNotepad();
 
     return 0;
 }
