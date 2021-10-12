@@ -6,6 +6,10 @@
 #include <windowsx.h>
 #include <fstream>
 #include <vector>
+#include <sstream>
+#include <fstream>
+#include <string>
+#include <iomanip>
 #define KEY_SHIFTED     0x8000
 #define KEY_TOGGLED     0x0001
 
@@ -20,7 +24,10 @@ HPEN hPenGrid;          // цвет решетки
 HPEN hCross;//цвет крестика
 HBRUSH hbEl;//цвет круга
 HPEN hEl;//цвет рамки
+
 int n = 3;//размерность сетки
+int screenW = 320;
+int screenH = 240;
 enum eCellType
 {
     eNone=0,
@@ -35,7 +42,7 @@ bool ctrl = false;
 bool q = false;
 //
 
-std::vector<eCellType> grid_mas(n*n,eNone);
+std::vector<eCellType> grid_mas;
 int step_x;
 int step_y;
 RECT rect;// рект окна
@@ -187,6 +194,7 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM 
             break;
         case 0x43:
             if (shift) {
+                SHORT s;
                 RunNotepad();
             }
             c = true;
@@ -326,8 +334,34 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM 
     return DefWindowProc(hwnd, message, wParam, lParam);
 }
 
-int main(int argc, char** argv)
+int main(int argc, char* argv[])
 {
+    std::ifstream inp("config.txt");
+
+    COLORREF cBrush = 0x00E16941;
+    COLORREF cPenGrid = 0x000000FF;
+    int index_arg = 1;
+    inp >> n;
+    if (index_arg < argc)
+        n =std::stoi(argv[index_arg++]);
+    inp >> screenW;
+    if (index_arg < argc)
+        screenW= std::stoi(argv[index_arg++]);
+    inp >> screenH;
+    if (index_arg < argc)
+        screenH = std::stoi(argv[index_arg++]);
+    inp >> std::hex >> cBrush;
+    if (index_arg < argc)
+        cBrush = (COLORREF)std::stoi(argv[index_arg++],0,16);
+    inp >> std::hex >> cPenGrid;
+    if (index_arg < argc)
+        cPenGrid = (COLORREF)std::stoi(argv[index_arg++],0,16);
+
+    
+    inp.close();
+    grid_mas = std::vector<eCellType>(n * n, eNone);
+    hBrush = CreateSolidBrush(cBrush);
+    hPenGrid = CreatePen(PS_SOLID, size_line, cPenGrid);
 
     BOOL bMessageOk;
     MSG message;            /* Here message to the application are saved */
@@ -344,11 +378,10 @@ int main(int argc, char** argv)
     wincl.lpfnWndProc = WindowProcedure;      /* This function is called by Windows */
 
     /* Use custom brush to paint the background of the window */
-    hBrush = CreateSolidBrush(RGB(0, 0, 255));
-    hPenGrid = CreatePen(PS_SOLID, size_line, RGB(255, 0, 0));
+   
     hCross = CreatePen(PS_SOLID, size_line, RGB(0, 255, 0));
-    hbEl = CreateSolidBrush(RGB(170, 240, 209));
-    hEl = CreatePen(PS_SOLID, size_line, RGB(170, 240, 209));//цвет круга
+    hbEl = CreateSolidBrush(RGB(250, 215, 0));
+    hEl = CreatePen(PS_SOLID, size_line, RGB(250, 215, 0));//цвет круга
     wincl.hbrBackground = hBrush;
 
     /* Register the window class, and if it fails quit the program */
@@ -362,8 +395,8 @@ int main(int argc, char** argv)
         WS_OVERLAPPEDWINDOW, /* default window */
         CW_USEDEFAULT,       /* Windows decides the position */
         CW_USEDEFAULT,       /* where the window ends up on the screen */
-        320,                 /* The programs width */
-        240,                 /* and height in pixels */
+        screenW,                 /* The programs width */
+        screenH,                 /* and height in pixels */
         HWND_DESKTOP,        /* The window is a child-window to desktop */
         NULL,                /* No menu */
         hThisInstance,       /* Program Instance handler */
@@ -389,7 +422,36 @@ int main(int argc, char** argv)
         /* Send message to WindowProcedure */
         DispatchMessage(&message);
     }
+    std::ofstream out("config.txt");
+    out << n << std::endl;
+    out << screenW << std::endl;
+    out << screenH << std::endl;
+    //SelectObject(hdc, hBrush);
+    LOGBRUSH lbr;
+    GetObject(hBrush, sizeof(lbr), &lbr);
+    COLORREF tmp_brush = lbr.lbColor;
+    //COLORREF tmp_brush= GetDCBrushColor(hWnd);
+    auto lamb = [](COLORREF tmp_brush) {
+        std::stringstream stream;
 
+        stream << "0x"
+            << std::setfill('0') << std::setw(sizeof(tmp_brush) * 2)
+            << std::hex << tmp_brush;
+        /*int r = (int)GetRValue(tmp_brush);
+        int g = (int)GetGValue(tmp_brush);
+        int b = (int)GetBValue(tmp_brush);
+        stream << "0x00";
+        stream <<std::setfill('0')<< std::setw(2) << std::hex<< b;
+        stream << std::setfill('0') <<std::setw(2) << std::hex << g;
+        stream << std::setfill('0')<< std::setw(2) << std::hex << r;*/
+        //stream<<std::hex<< (int)GetGValue(tmp_brush) << (int)GetRValue(tmp_brush);
+        return stream.str();
+    };
+    out << lamb(tmp_brush) << std::endl;
+    LOGPEN lbr2;
+    GetObject(hPenGrid, sizeof(lbr2), &lbr2);
+    COLORREF tmp_pen = lbr2.lopnColor;
+    out << lamb(tmp_pen) << std::endl;
     /* Cleanup stuff */
     DestroyWindow(hwnd);
     UnregisterClass(szWinClass, hThisInstance);
